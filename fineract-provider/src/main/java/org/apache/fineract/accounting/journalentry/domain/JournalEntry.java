@@ -158,6 +158,10 @@ public class JournalEntry extends AbstractAuditableCustom {
         return this.office;
     }
 
+    public void setOffice(final Office office) {
+        this.office = office;
+    }
+
     public GLAccount getGlAccount() {
         return this.glAccount;
     }

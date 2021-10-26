@@ -26,6 +26,8 @@ import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
+import org.apache.fineract.accounting.journalentry.domain.JournalEntryRepository;
+import org.apache.fineract.accounting.producttoaccountmapping.domain.PortfolioProductType;
 import org.apache.fineract.infrastructure.core.api.JsonCommand;
 import org.apache.fineract.infrastructure.core.data.CommandProcessingResult;
 import org.apache.fineract.infrastructure.core.data.CommandProcessingResultBuilder;
@@ -85,6 +87,7 @@ public class TransferWritePlatformServiceJpaRepositoryImpl implements TransferWr
     private final StaffRepositoryWrapper staffRepositoryWrapper;
     private final ClientTransferDetailsRepositoryWrapper clientTransferDetailsRepositoryWrapper;
     private final PlatformSecurityContext context;
+    private final JournalEntryRepository journalEntryRepository;
 
     @Autowired
     public TransferWritePlatformServiceJpaRepositoryImpl(final ClientRepositoryWrapper clientRepositoryWrapper,
@@ -94,7 +97,8 @@ public class TransferWritePlatformServiceJpaRepositoryImpl implements TransferWr
             final NoteWritePlatformService noteWritePlatformService, final StaffRepositoryWrapper staffRepositoryWrapper,
             final SavingsAccountRepositoryWrapper savingsAccountRepositoryWrapper,
             final SavingsAccountWritePlatformService savingsAccountWritePlatformService,
-            final ClientTransferDetailsRepositoryWrapper clientTransferDetailsRepositoryWrapper, final PlatformSecurityContext context) {
+            final ClientTransferDetailsRepositoryWrapper clientTransferDetailsRepositoryWrapper, final PlatformSecurityContext context,
+            final JournalEntryRepository journalEntryRepository) {
         this.clientRepositoryWrapper = clientRepositoryWrapper;
         this.officeRepository = officeRepository;
         this.calendarInstanceRepository = calendarInstanceRepository;
@@ -108,7 +112,7 @@ public class TransferWritePlatformServiceJpaRepositoryImpl implements TransferWr
         this.savingsAccountWritePlatformService = savingsAccountWritePlatformService;
         this.clientTransferDetailsRepositoryWrapper = clientTransferDetailsRepositoryWrapper;
         this.context = context;
-
+        this.journalEntryRepository = journalEntryRepository;
     }
 
     @Override
@@ -405,6 +409,14 @@ public class TransferWritePlatformServiceJpaRepositoryImpl implements TransferWr
                 if (loan.isDisbursed() && !loan.isClosed()) {
                     switch (transferEventType) {
                         case ACCEPTANCE:
+                            loan.getLoanTransactions()
+                                    .forEach(transaction -> this.journalEntryRepository
+                                            .findJournalEntries("L" + transaction.getId().toString(), PortfolioProductType.LOAN.getValue())
+                                            .forEach(journalEntry -> {
+                                                journalEntry.setOffice(destinationOffice);
+                                                this.journalEntryRepository.save(journalEntry);
+                                            }));
+
                             this.loanWritePlatformService.acceptLoanTransfer(loan, loan.getLastUserTransactionDate(), destinationOffice,
                                     staff);
                         break;
