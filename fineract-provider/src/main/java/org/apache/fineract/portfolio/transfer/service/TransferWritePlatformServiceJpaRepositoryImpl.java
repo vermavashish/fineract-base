@@ -56,6 +56,7 @@ import org.apache.fineract.portfolio.group.exception.ClientNotInGroupException;
 import org.apache.fineract.portfolio.group.exception.GroupNotActiveException;
 import org.apache.fineract.portfolio.loanaccount.domain.Loan;
 import org.apache.fineract.portfolio.loanaccount.domain.LoanRepositoryWrapper;
+import org.apache.fineract.portfolio.loanaccount.domain.LoanTransactionRepository;
 import org.apache.fineract.portfolio.loanaccount.service.LoanWritePlatformService;
 import org.apache.fineract.portfolio.note.service.NoteWritePlatformService;
 import org.apache.fineract.portfolio.savings.domain.SavingsAccount;
@@ -88,6 +89,7 @@ public class TransferWritePlatformServiceJpaRepositoryImpl implements TransferWr
     private final ClientTransferDetailsRepositoryWrapper clientTransferDetailsRepositoryWrapper;
     private final PlatformSecurityContext context;
     private final JournalEntryRepository journalEntryRepository;
+    private final LoanTransactionRepository loanTransactionRepository;
 
     @Autowired
     public TransferWritePlatformServiceJpaRepositoryImpl(final ClientRepositoryWrapper clientRepositoryWrapper,
@@ -96,6 +98,7 @@ public class TransferWritePlatformServiceJpaRepositoryImpl implements TransferWr
             final LoanRepositoryWrapper loanRepositoryWrapper, final TransfersDataValidator transfersDataValidator,
             final NoteWritePlatformService noteWritePlatformService, final StaffRepositoryWrapper staffRepositoryWrapper,
             final SavingsAccountRepositoryWrapper savingsAccountRepositoryWrapper,
+            final LoanTransactionRepository loanTransactionRepository,
             final SavingsAccountWritePlatformService savingsAccountWritePlatformService,
             final ClientTransferDetailsRepositoryWrapper clientTransferDetailsRepositoryWrapper, final PlatformSecurityContext context,
             final JournalEntryRepository journalEntryRepository) {
@@ -113,6 +116,7 @@ public class TransferWritePlatformServiceJpaRepositoryImpl implements TransferWr
         this.clientTransferDetailsRepositoryWrapper = clientTransferDetailsRepositoryWrapper;
         this.context = context;
         this.journalEntryRepository = journalEntryRepository;
+        this.loanTransactionRepository = loanTransactionRepository;
     }
 
     @Override
@@ -409,13 +413,16 @@ public class TransferWritePlatformServiceJpaRepositoryImpl implements TransferWr
                 if (loan.isDisbursed() && !loan.isClosed()) {
                     switch (transferEventType) {
                         case ACCEPTANCE:
-                            loan.getLoanTransactions()
-                                    .forEach(transaction -> this.journalEntryRepository
-                                            .findJournalEntries("L" + transaction.getId().toString(), PortfolioProductType.LOAN.getValue())
-                                            .forEach(journalEntry -> {
-                                                journalEntry.setOffice(destinationOffice);
-                                                this.journalEntryRepository.save(journalEntry);
-                                            }));
+                            loan.getLoanTransactions().forEach(transaction -> {
+                                this.journalEntryRepository
+                                        .findJournalEntries("L" + transaction.getId().toString(), PortfolioProductType.LOAN.getValue())
+                                        .forEach(journalEntry -> {
+                                            journalEntry.setOffice(destinationOffice);
+                                            this.journalEntryRepository.save(journalEntry);
+                                        });
+                                transaction.setOffice(destinationOffice);
+                                this.loanTransactionRepository.save(transaction);
+                            });
 
                             this.loanWritePlatformService.acceptLoanTransfer(loan, loan.getLastUserTransactionDate(), destinationOffice,
                                     staff);

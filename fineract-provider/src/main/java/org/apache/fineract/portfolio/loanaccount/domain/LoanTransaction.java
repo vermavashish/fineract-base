@@ -828,6 +828,10 @@ public class LoanTransaction extends AbstractPersistableCustom {
                 || this.isNonMonetaryTransaction() || this.isIncomePosting());
     }
 
+    public void setOffice(final Office office) {
+        this.office = office;
+    }
+
     public Set<LoanCollateralManagement> getLoanCollateralManagementSet() {
         return this.loanCollateralManagementSet;
     }
